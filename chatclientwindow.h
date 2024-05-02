@@ -23,11 +23,11 @@ public:
 private slots:
     void onMessageReceived();
 
-    void onSendButtonReleased();
+    void onSendButtonClicked();
 
-    void onConnectButtonReleased();
+    void onConnectButtonClicked();
 
-    void onCloseConnectionButtonReleased();
+    void onCloseConnectionButtonClicked();
 
 private:
     void setName();

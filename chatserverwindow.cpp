@@ -1,9 +1,8 @@
 #include "chatserverwindow.h"
-#include "qmessagebox.h"
 #include "ui_chatserverwindow.h"
-#include "Server.h"
 
 #include <QtConcurrent>
+#include <QMessageBox>
 #include <future>
 
 ChatServerWindow::ChatServerWindow(QWidget *parent) :
@@ -12,63 +11,63 @@ ChatServerWindow::ChatServerWindow(QWidget *parent) :
     _receiveResultWatcher(nullptr)
 {
     ui->setupUi(this);
-    this->setWindowTitle("Чат-Сервер");
-    this->setGeometry(QRect(100, 100, 590, 510));
-    this->ui->clientCountLcd->setDigitCount(2);
+    setWindowTitle("Чат-Сервер");
+    setGeometry(QRect(100, 100, 590, 510));
+    ui->clientCountLcd->setDigitCount(2);
 
-    connect(this->ui->connectButton, &QPushButton::released, this,
-            &ChatServerWindow::onConnectButtonReleased);
+    connect(ui->connectButton, &QPushButton::clicked, this,
+            &ChatServerWindow::onConnectButtonClicked);
 
-    connect(this->ui->sendButton, &QPushButton::released, this,
-            &ChatServerWindow::onSendButtonReleased);
+    connect(ui->sendButton, &QPushButton::clicked, this,
+            &ChatServerWindow::onSendButtonClicked);
 
-    connect(this->ui->closeButton, &QPushButton::released, this,
-            &ChatServerWindow::onCloseConnectionButtonReleased);
-
-    this->ui->portEdit->setText("9192");
+    connect(ui->closeButton, &QPushButton::clicked, this,
+            &ChatServerWindow::onCloseConnectionButtonClicked);
 }
 
 ChatServerWindow::~ChatServerWindow()
 {
+    _receiveResultWatcher->cancel();
+    _server.closeConnection();
     delete ui;
 }
 
 void ChatServerWindow::onClientConnected()
 {
-    if (!this->_server.isConnectionOpen())
+    if (!_server.isConnectionOpen())
         return;
 
-    this->writeToChat("==К серверу подключился клиент!==");
-    this->_clientCount++;
-    this->ui->clientCountLcd->display(_clientCount);
+    writeToChat("==К серверу подключился клиент!==");
+    _clientCount++;
+    ui->clientCountLcd->display(_clientCount);
 
-    auto wathcer = new QFutureWatcher<void>(this);
-    connect(wathcer, SIGNAL(finished()), this, SLOT(onClientConnected()));
-    wathcer->setFuture(QtConcurrent::run(&my_chat::Server::initClient, &_server));
+    auto watcher = new QFutureWatcher<void>(this);
+    connect(watcher, SIGNAL(finished()), this, SLOT(onClientConnected()));
+    watcher->setFuture(QtConcurrent::run(&my_chat::Server::initClient, &_server));
 
-    this->_receiveResultWatcher = new QFutureWatcher<std::string>(this);
+    _receiveResultWatcher = new QFutureWatcher<std::string>(this);
     connect(_receiveResultWatcher, SIGNAL(finished()), this, SLOT(onMessageReceived()));
     _receiveResultWatcher->setFuture(QtConcurrent::run(&my_chat::Server::receiveFromClient, &_server));
 }
 
 void ChatServerWindow::onMessageReceived()
 {
-    if (!this->_server.isConnectionOpen())
-        return this->onClientDisconnected();
+    if (!_server.isConnectionOpen())
+        return onClientDisconnected();
 
     QString message(_receiveResultWatcher->result().c_str());
     message.replace("\x00", "");
 
-    this->writeToChat(QString(message) + '\n');
+    writeToChat(QString(message) + '\n');
 
-    this->_receiveResultWatcher = new QFutureWatcher<std::string>(this);
+    _receiveResultWatcher = new QFutureWatcher<std::string>(this);
     connect(_receiveResultWatcher, SIGNAL(finished()), this, SLOT(onMessageReceived()));
     _receiveResultWatcher->setFuture(QtConcurrent::run(&my_chat::Server::receiveFromClient, &_server));
 }
 
-void ChatServerWindow::onSendButtonReleased()
+void ChatServerWindow::onSendButtonClicked()
 {
-    if (!this->_server.isConnectionOpen())
+    if (!_server.isConnectionOpen())
     {
         QMessageBox message;
         message.setWindowTitle("Ошибка");
@@ -77,30 +76,30 @@ void ChatServerWindow::onSendButtonReleased()
         return;
     }
 
-    if (this->_clientCount <= 0)
+    if (_clientCount <= 0)
         return;
 
-    if (this->ui->messageText->toPlainText().isEmpty())
+    if (ui->messageText->toPlainText().isEmpty())
         return;
 
-    this->_server.sendToClient(
-            this->_name +
+    _server.sendToClient(
+            _name +
             ": " +
-            this->ui->messageText->toPlainText().toStdString()
+            ui->messageText->toPlainText().toStdString()
         );
 
-    this->writeToChat(
+    writeToChat(
             "Я: " +
-            this->ui->messageText->toPlainText() +
+            ui->messageText->toPlainText() +
             '\n'
         );
 
-    this->ui->messageText->setText("");
+    ui->messageText->setText("");
 }
 
-void ChatServerWindow::onConnectButtonReleased()
+void ChatServerWindow::onConnectButtonClicked()
 {
-    if (this->_server.isConnectionOpen())
+    if (_server.isConnectionOpen())
     {
         QMessageBox message;
         message.setWindowTitle("Ошибка");
@@ -111,15 +110,15 @@ void ChatServerWindow::onConnectButtonReleased()
 
     const std::string ip = "127.0.0.1";
     const unsigned short port = ui->portEdit->text().toUShort();
-    this->_server.setIpAndPort(ip, port);
+    _server.setIpAndPort(ip, port);
 
     try
     {
-        this->_server.openConnection();
+        _server.openConnection();
 
-        auto wathcer = new QFutureWatcher<void>(this);
-        connect(wathcer, SIGNAL(finished()), this, SLOT(onClientConnected()));
-        wathcer->setFuture(QtConcurrent::run(&my_chat::Server::initClient, &_server));
+        auto watcher = new QFutureWatcher<void>(this);
+        connect(watcher, SIGNAL(finished()), this, SLOT(onClientConnected()));
+        watcher->setFuture(QtConcurrent::run(&my_chat::Server::initClient, &_server));
     }
     catch (std::exception& e)
     {
@@ -137,44 +136,44 @@ void ChatServerWindow::onConnectButtonReleased()
     onConnectionOpened();
 }
 
-void ChatServerWindow::onCloseConnectionButtonReleased()
+void ChatServerWindow::onCloseConnectionButtonClicked()
 {
-    this->closeConnection();
+    closeConnection();
 }
 
 void ChatServerWindow::setName()
 {
-    if (this->ui->nameEdit->text().isEmpty())
+    if (ui->nameEdit->text().isEmpty())
         _name = "Безымянный";
     else
-        _name = this->ui->nameEdit->text().toStdString();
+        _name = ui->nameEdit->text().toStdString();
 }
 
 void ChatServerWindow::closeConnection()
 {
     if (_receiveResultWatcher)
-        this->_receiveResultWatcher->cancel();
+        _receiveResultWatcher->cancel();
 
-    this->ui->isServerActiveLabel->setText("Сервер выключен");
-    this->_server.closeConnection();
+    ui->isServerActiveLabel->setText("Сервер выключен");
+    _server.closeConnection();
 }
 
 void ChatServerWindow::onConnectionOpened()
 {
-    this->setName();
-    this->ui->isServerActiveLabel->setText("Сервер включен");
+    setName();
+    ui->isServerActiveLabel->setText("Сервер включен");
 }
 
 void ChatServerWindow::onClientDisconnected()
 {
-    this->writeToChat("==От сервера отключился клиент!==");
-    this->_clientCount--;
-    this->ui->clientCountLcd->display(_clientCount);
+    writeToChat("==От сервера отключился клиент!==");
+    _clientCount--;
+    ui->clientCountLcd->display(_clientCount);
 
     if (_clientCount <= 0)
     {
-        this->_receiveResultWatcher->cancel();
-        this->_server.clearClientInfo();
+        _receiveResultWatcher->cancel();
+        _server.clearClientInfo();
 
         return;
     }
@@ -188,6 +187,6 @@ void ChatServerWindow::closeEvent(QCloseEvent *bar)
 
 void ChatServerWindow::writeToChat(QString message)
 {
-    QMutexLocker ml(&this->_writeToChatMutex);
-    this->ui->chatBrowser->append(message);
+    QMutexLocker ml(&_writeToChatMutex);
+    ui->chatBrowser->append(message);
 }

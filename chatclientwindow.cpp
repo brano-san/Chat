@@ -1,7 +1,9 @@
 #include "chatclientwindow.h"
-#include "qmessagebox.h"
-#include "qtconcurrentrun.h"
 #include "ui_chatclientwindow.h"
+
+#include <QtConcurrent>
+#include <QMessageBox>
+#include <QPushButton>
 
 ChatClientWindow::ChatClientWindow(QWidget *parent) :
     QWidget(parent),
@@ -9,51 +11,48 @@ ChatClientWindow::ChatClientWindow(QWidget *parent) :
     _receiveResultWatcher(nullptr)
 {
     ui->setupUi(this);
-    this->setWindowTitle("Чат-Клиент");
-    this->setGeometry(QRect(800, 100, 590, 510));
+    setWindowTitle("Чат-Клиент");
+    setGeometry(QRect(800, 100, 590, 510));
 
-    connect(this->ui->connectButton, &QPushButton::released, this,
-            &ChatClientWindow::onConnectButtonReleased);
+    connect(ui->connectButton, &QPushButton::clicked, this,
+            &ChatClientWindow::onConnectButtonClicked);
 
-    connect(this->ui->sendButton, &QPushButton::released, this,
-            &ChatClientWindow::onSendButtonReleased);
+    connect(ui->sendButton, &QPushButton::clicked, this,
+            &ChatClientWindow::onSendButtonClicked);
 
-    connect(this->ui->disconectButton, &QPushButton::released, this,
-            &ChatClientWindow::onCloseConnectionButtonReleased);
-
-    this->ui->ipEdit->setText("127.0.0.1");
-    this->ui->portEdit->setText("9192");
+    connect(ui->disconectButton, &QPushButton::clicked, this,
+            &ChatClientWindow::onCloseConnectionButtonClicked);
 }
 
 ChatClientWindow::~ChatClientWindow()
 {
-    this->_receiveResultWatcher->cancel();
-    this->_client.closeConnection();
+    _receiveResultWatcher->cancel();
+    _client.closeConnection();
     delete ui;
 }
 
 void ChatClientWindow::onMessageReceived()
 {
-    if (!this->_client.isConnectionOpen())
+    if (!_client.isConnectionOpen())
     {
-        this->writeToChat("==Вы отключились от сервера!==");
-        return this->closeConnection();
+        writeToChat("==Вы отключились от сервера!==");
+        return closeConnection();
     }
 
     QString message(_receiveResultWatcher->result().c_str());
     message.replace("\x00", "");
 
     if (message.isEmpty())
-        return this->closeConnection();
+        return closeConnection();
 
-    this->writeToChat(QString(message) + '\n');
+    writeToChat(QString(message) + '\n');
 
-    this->_receiveResultWatcher = new QFutureWatcher<std::string>(this);
+    _receiveResultWatcher = new QFutureWatcher<std::string>(this);
     connect(_receiveResultWatcher, SIGNAL(finished()), this, SLOT(onMessageReceived()));
     _receiveResultWatcher->setFuture(QtConcurrent::run(&my_chat::Client::receiveFromServer, &_client));
 }
 
-void ChatClientWindow::onSendButtonReleased()
+void ChatClientWindow::onSendButtonClicked()
 {
     if (!_client.isConnectionOpen())
     {
@@ -64,27 +63,27 @@ void ChatClientWindow::onSendButtonReleased()
         return;
     }
 
-    if (this->ui->messageText->toPlainText().isEmpty())
+    if (ui->messageText->toPlainText().isEmpty())
         return;
 
-    this->_client.sendToServer(
-            this->_name +
-            ": " +
-            this->ui->messageText->toPlainText().toStdString()
+    _client.sendToServer(
+        _name +
+        ": " +
+        ui->messageText->toPlainText().toStdString()
         );
 
-    this->writeToChat(
-            "Я: " +
-            this->ui->messageText->toPlainText() +
-            '\n'
+    writeToChat(
+        "Я: " +
+        ui->messageText->toPlainText() +
+        '\n'
         );
 
-    this->ui->messageText->setText("");
+    ui->messageText->setText("");
 }
 
-void ChatClientWindow::onConnectButtonReleased()
+void ChatClientWindow::onConnectButtonClicked()
 {
-    if (this->_client.isConnectionOpen())
+    if (_client.isConnectionOpen())
     {
         QMessageBox message;
         message.setWindowTitle("Ошибка");
@@ -95,11 +94,11 @@ void ChatClientWindow::onConnectButtonReleased()
 
     const std::string ip = ui->ipEdit->text().toStdString();
     const unsigned short port = ui->portEdit->text().toUShort();
-    this->_client.setIpAndPort(ip, port);
+    _client.setIpAndPort(ip, port);
 
     try
     {
-        this->_client.openConnection();
+        _client.openConnection();
     }
     catch (std::exception& e)
     {
@@ -114,55 +113,55 @@ void ChatClientWindow::onConnectButtonReleased()
         return;
     }
 
-    this->writeToChat("==Вы успешно подключились к серверу!==");
+    writeToChat("==Вы успешно подключились к серверу!==");
 
-    this->onConnectionOpened();
+    onConnectionOpened();
 }
 
-void ChatClientWindow::onCloseConnectionButtonReleased()
+void ChatClientWindow::onCloseConnectionButtonClicked()
 {
-    if (!this->_client.isConnectionOpen())
+    if (!_client.isConnectionOpen())
         return;
 
-    this->closeConnection();
+    closeConnection();
 }
 
 void ChatClientWindow::setName()
 {
-    if (this->ui->nameEdit->text().isEmpty())
+    if (ui->nameEdit->text().isEmpty())
         _name = "Безымянный";
     else
-        _name = this->ui->nameEdit->text().toStdString();
+        _name = ui->nameEdit->text().toStdString();
 }
 
 void ChatClientWindow::closeConnection()
 {
     if (_receiveResultWatcher)
-        this->_receiveResultWatcher->cancel();
+        _receiveResultWatcher->cancel();
 
-    this->_client.closeConnection();
-    this->ui->connectionLabel->setText("Подключение утеряно");
+    _client.closeConnection();
+    ui->connectionLabel->setText("Подключение утеряно");
 }
 
 void ChatClientWindow::onConnectionOpened()
 {
-    this->setName();
+    setName();
 
-    this->ui->connectionLabel->setText("Подключение установлено");
+    ui->connectionLabel->setText("Подключение установлено");
 
-    this->_receiveResultWatcher = new QFutureWatcher<std::string>(this);
+    _receiveResultWatcher = new QFutureWatcher<std::string>(this);
     connect(_receiveResultWatcher, SIGNAL(finished()), this, SLOT(onMessageReceived()));
     _receiveResultWatcher->setFuture(QtConcurrent::run(&my_chat::Client::receiveFromServer, &_client));
 }
 
 void ChatClientWindow::closeEvent(QCloseEvent *bar)
 {
-    this->closeConnection();
+    closeConnection();
     bar->accept();
 }
 
 void ChatClientWindow::writeToChat(QString message)
 {
-    QMutexLocker ml(&this->_writeToChatMutex);
-    this->ui->chatBrowser->append(message);
+    QMutexLocker ml(&_writeToChatMutex);
+    ui->chatBrowser->append(message);
 }
